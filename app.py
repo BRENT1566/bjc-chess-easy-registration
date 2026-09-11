@@ -4,13 +4,12 @@ import os
 import sqlite3
 import uuid
 from datetime import datetime
-from flask import Flask, Response, flash, redirect, render_template, request, session, url_for
+from flask import Flask, Response, flash, jsonify, redirect, render_template, request, session, url_for
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("BJC_ONLINE_DB", os.path.join(BASE_DIR, "online_registrations.db"))
 ADMIN_PASSWORD = os.environ.get("BJC_ADMIN_PASSWORD", "BJC2026")
 SECRET_KEY = os.environ.get("BJC_SECRET_KEY", "change-this-secret-before-public-use")
-
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 AGE_GROUPS = ["U07", "U09", "U11", "U13", "U15", "U17", "U19"]
@@ -66,8 +65,10 @@ def admin_login():
         if request.form.get("password")==ADMIN_PASSWORD: session["admin"]=True; return redirect(url_for("admin"))
         flash("Incorrect password.")
     return render_template("admin_login.html")
+
 @app.route("/admin/logout")
 def admin_logout(): session.clear(); return redirect(url_for("register"))
+
 @app.route("/admin")
 def admin():
     if not require_admin(): return redirect(url_for("admin_login"))
@@ -76,6 +77,16 @@ def admin():
         rows=con.execute("SELECT * FROM submissions ORDER BY section,school,surname,first_name").fetchall() if section=="ALL" else con.execute("SELECT * FROM submissions WHERE section=? ORDER BY school,surname,first_name",(section,)).fetchall(); summary=con.execute("SELECT section,COUNT(*) c FROM submissions GROUP BY section ORDER BY section").fetchall()
     sections=["ALL"]+[f"{g} Boys" for g in AGE_GROUPS]+[f"{g} Girls" for g in AGE_GROUPS]+["INELIGIBLE"]
     return render_template("admin.html",rows=rows,summary=summary,sections=sections,selected=section)
+
+@app.route("/api/registrations")
+def api_registrations():
+    supplied=request.headers.get("X-BJC-Admin-Password","")
+    if not supplied or supplied!=ADMIN_PASSWORD:
+        return jsonify({"ok":False,"error":"Unauthorized"}),401
+    with db() as con: rows=con.execute("SELECT * FROM submissions ORDER BY id").fetchall()
+    fields=["id","batch_id","school","contact","email","phone","tournament","tournament_year","chessa_id","surname","first_name","birth_date","gender","grade","age_group","section","notes","submitted_at"]
+    return jsonify({"ok":True,"count":len(rows),"registrations":[{k:r[k] for k in fields} for r in rows]})
+
 @app.route("/admin/export.csv")
 def export_csv():
     if not require_admin(): return redirect(url_for("admin_login"))
@@ -83,9 +94,11 @@ def export_csv():
     out=io.StringIO(); w=csv.writer(out); w.writerow(["School Name","Contact Teacher / Coach","Email Address","Cell Number","Tournament / Event","Tournament Year","CHESSA ID","Surname","First Name","Date of Birth","Gender","Grade","Age Group","Section","Notes"])
     for r in rows: w.writerow([r["school"],r["contact"],r["email"],r["phone"],r["tournament"],r["tournament_year"],r["chessa_id"],r["surname"],r["first_name"],r["birth_date"],r["gender"],r["grade"],r["age_group"],r["section"],r["notes"]])
     data="\ufeff"+out.getvalue(); filename=f"BJC_ONLINE_REGISTRATIONS_{datetime.now():%Y%m%d_%H%M}.csv"; return Response(data,mimetype="text/csv",headers={"Content-Disposition":f"attachment; filename={filename}"})
+
 @app.route("/admin/clear",methods=["POST"])
 def clear_all():
     if not require_admin(): return redirect(url_for("admin_login"))
     with db() as con: con.execute("DELETE FROM submissions")
     flash("All online registrations have been cleared."); return redirect(url_for("admin"))
+
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","5000")),debug=False)
