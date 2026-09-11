@@ -1,7 +1,8 @@
 {% extends 'base.html' %}{% block content %}
 <h2>{{ event_name }}</h2>
 <p><strong>Date:</strong> {{ event_date }}<br><strong>Venue:</strong> {{ venue }}<br><strong>Registration fee:</strong> {{ fee }}<br><strong>Registration cut-off:</strong> {{ cutoff }}</p>
-<p><strong>Eligibility:</strong><br>High Schools Champions League and High Schools Development Champions League: birth years 2007–2012.<br>Primary Schools Champions League and Primary Schools Development League: 2013 and earlier, as supplied by the organiser.</p>
+<p><strong>Eligibility:</strong><br>High Schools Champions League and High Schools Development Champions League: birth years <strong>2007–2012</strong>.<br>Primary Schools Champions League and Primary Schools Development League: born <strong>2013 or later/younger</strong>.</p>
+<p><strong>Important:</strong> Date of Birth and Gender are compulsory for every player. The system checks the selected division against the player's year of birth before accepting the registration.</p>
 {% if closed %}
 <p><strong>REGISTRATION IS CLOSED.</strong> The closing date was {{ cutoff }}.</p>
 {% else %}
