@@ -3,7 +3,7 @@ import io
 import os
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from flask import Flask, Response, flash, jsonify, redirect, render_template, request, session, url_for
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -13,6 +13,18 @@ SECRET_KEY = os.environ.get("BJC_SECRET_KEY", "change-this-secret-before-public-
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 AGE_GROUPS = ["U07", "U09", "U11", "U13", "U15", "U17", "U19"]
+
+GRAND_CHALLENGE_NAME = "WEST COAST SCHOOLS CHESS GRAND CHALLENGE"
+GRAND_CHALLENGE_DATE = "17 October 2026"
+GRAND_CHALLENGE_VENUE = "Porterville Primary, Porterville"
+GRAND_CHALLENGE_FEE = "R50 per player"
+GRAND_CHALLENGE_CUTOFF = date(2026, 10, 10)
+GRAND_CHALLENGE_DIVISIONS = [
+    "WEST COAST HIGH SCHOOLS CHAMPIONS LEAGUE 2026",
+    "WEST COAST PRIMARY SCHOOLS CHAMPIONS LEAGUE 2026",
+    "WEST COAST HIGH SCHOOLS DEVELOPMENT CHAMPIONS LEAGUE 2026",
+    "WEST COAST PRIMARY SCHOOLS DEVELOPMENT LEAGUE 2026",
+]
 
 def db():
     con = sqlite3.connect(DB_PATH)
@@ -38,26 +50,74 @@ def calculate_age_group(dob, year):
 
 def require_admin(): return session.get("admin") is True
 
+def save_players_from_form(tournament, year, redirect_endpoint):
+    school=request.form.get("school","").strip()
+    contact=request.form.get("contact","").strip()
+    email=request.form.get("email","").strip()
+    phone=request.form.get("phone","").strip()
+    surnames=request.form.getlist("surname[]")
+    firsts=request.form.getlist("first_name[]")
+    dobs=request.form.getlist("birth_date[]")
+    genders=request.form.getlist("gender[]")
+    grades=request.form.getlist("grade[]")
+    ids=request.form.getlist("chessa_id[]")
+    notes=request.form.getlist("notes[]")
+    if not school or not contact:
+        flash("School name and contact teacher/coach are required.")
+        return redirect(url_for(redirect_endpoint))
+    batch_id=uuid.uuid4().hex[:12]
+    saved=0
+    with db() as con:
+        for i in range(max(len(surnames),len(firsts),len(dobs))):
+            surname=surnames[i].strip() if i<len(surnames) else ""
+            first=firsts[i].strip() if i<len(firsts) else ""
+            dob=dobs[i].strip() if i<len(dobs) else ""
+            gender=genders[i].strip() if i<len(genders) else ""
+            if not surname and not first: continue
+            if not surname or not first or not dob or gender not in ("Male","Female"):
+                flash(f"Player row {i+1} is incomplete. Surname, first name, date of birth and gender are required.")
+                return redirect(url_for(redirect_endpoint))
+            age_group=calculate_age_group(dob,year)
+            section=age_group
+            if age_group!="INELIGIBLE": section += " Girls" if gender=="Female" else " Boys"
+            con.execute("INSERT OR IGNORE INTO submissions (batch_id,school,contact,email,phone,tournament,tournament_year,chessa_id,surname,first_name,birth_date,gender,grade,age_group,section,notes,submitted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(batch_id,school,contact,email,phone,tournament,year,ids[i].strip() if i<len(ids) else "",surname,first,dob,gender,grades[i].strip() if i<len(grades) else "",age_group,section,notes[i].strip() if i<len(notes) else "",datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            saved+=1
+    if saved==0:
+        flash("No player rows were completed.")
+        return redirect(url_for(redirect_endpoint))
+    return render_template("success.html",school=school,count=saved,batch_id=batch_id)
+
 @app.route("/",methods=["GET","POST"])
 def register():
     if request.method=="POST":
-        school=request.form.get("school","").strip(); contact=request.form.get("contact","").strip(); email=request.form.get("email","").strip(); phone=request.form.get("phone","").strip(); tournament=request.form.get("tournament","").strip()
+        tournament=request.form.get("tournament","").strip()
         try: year=int(request.form.get("tournament_year","2026"))
         except ValueError: year=2026
-        surnames=request.form.getlist("surname[]"); firsts=request.form.getlist("first_name[]"); dobs=request.form.getlist("birth_date[]"); genders=request.form.getlist("gender[]"); grades=request.form.getlist("grade[]"); ids=request.form.getlist("chessa_id[]"); notes=request.form.getlist("notes[]")
-        if not school or not contact: flash("School name and contact teacher/coach are required."); return redirect(url_for("register"))
-        batch_id=uuid.uuid4().hex[:12]; saved=0
-        with db() as con:
-            for i in range(max(len(surnames),len(firsts),len(dobs))):
-                surname=surnames[i].strip() if i<len(surnames) else ""; first=firsts[i].strip() if i<len(firsts) else ""; dob=dobs[i].strip() if i<len(dobs) else ""; gender=genders[i].strip() if i<len(genders) else ""
-                if not surname and not first: continue
-                if not surname or not first or not dob or gender not in ("Male","Female"): flash(f"Player row {i+1} is incomplete. Surname, first name, date of birth and gender are required."); return redirect(url_for("register"))
-                age_group=calculate_age_group(dob,year); section=age_group
-                if age_group!="INELIGIBLE": section += " Girls" if gender=="Female" else " Boys"
-                con.execute("INSERT OR IGNORE INTO submissions (batch_id,school,contact,email,phone,tournament,tournament_year,chessa_id,surname,first_name,birth_date,gender,grade,age_group,section,notes,submitted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(batch_id,school,contact,email,phone,tournament,year,ids[i].strip() if i<len(ids) else "",surname,first,dob,gender,grades[i].strip() if i<len(grades) else "",age_group,section,notes[i].strip() if i<len(notes) else "",datetime.now().strftime("%Y-%m-%d %H:%M:%S"))); saved+=1
-        if saved==0: flash("No player rows were completed."); return redirect(url_for("register"))
-        return render_template("success.html",school=school,count=saved,batch_id=batch_id)
+        return save_players_from_form(tournament, year, "register")
     return render_template("register.html",year=2026)
+
+@app.route("/west-coast-grand-challenge", methods=["GET","POST"])
+def west_coast_grand_challenge():
+    closed = date.today() > GRAND_CHALLENGE_CUTOFF
+    if request.method=="POST":
+        if closed:
+            flash("Registration closed on 10 October 2026.")
+            return redirect(url_for("west_coast_grand_challenge"))
+        division=request.form.get("division","").strip()
+        if division not in GRAND_CHALLENGE_DIVISIONS:
+            flash("Please select one of the four tournament divisions.")
+            return redirect(url_for("west_coast_grand_challenge"))
+        return save_players_from_form(division, 2026, "west_coast_grand_challenge")
+    return render_template(
+        "west_coast_grand_challenge.html",
+        event_name=GRAND_CHALLENGE_NAME,
+        event_date=GRAND_CHALLENGE_DATE,
+        venue=GRAND_CHALLENGE_VENUE,
+        fee=GRAND_CHALLENGE_FEE,
+        cutoff="10 October 2026",
+        divisions=GRAND_CHALLENGE_DIVISIONS,
+        closed=closed,
+    )
 
 @app.route("/admin/login",methods=["GET","POST"])
 def admin_login():
