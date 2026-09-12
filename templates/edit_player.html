@@ -1,0 +1,16 @@
+{% extends 'base.html' %}{% block content %}
+<h2>Edit Player Registration</h2>
+<p><strong>School:</strong> {{ r['school'] }}<br><strong>Current division:</strong> {{ r['tournament'] }}</p>
+<form method="post">
+<p>School Name * <input name="school" value="{{ r['school'] }}" required></p>
+<p>CHESSA ID <input name="chessa_id" value="{{ r['chessa_id'] }}"></p>
+<p>Surname * <input name="surname" value="{{ r['surname'] }}" required></p>
+<p>First Name * <input name="first_name" value="{{ r['first_name'] }}" required></p>
+<p>Date of Birth * <input type="date" name="birth_date" value="{{ r['birth_date'] }}" required></p>
+<p>Gender * <select name="gender" required><option value="">Select</option><option value="Male" {% if r['gender']=='Male' %}selected{% endif %}>Male</option><option value="Female" {% if r['gender']=='Female' %}selected{% endif %}>Female</option></select></p>
+<p>Grade <input name="grade" value="{{ r['grade'] }}"></p>
+<p>Division * <select name="tournament" required>{% for d in divisions %}<option value="{{ d }}" {% if r['tournament']==d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select></p>
+<p>Notes <input name="notes" value="{{ r['notes'] }}"></p>
+<p><button type="submit">Save Changes</button> <a href="{{ url_for('admin') }}">Cancel</a></p>
+</form>
+{% endblock %}
