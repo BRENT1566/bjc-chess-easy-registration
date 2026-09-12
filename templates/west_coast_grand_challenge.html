@@ -2,7 +2,7 @@
 <h2>{{ event_name }}</h2>
 <p><strong>Date:</strong> {{ event_date }}<br><strong>Venue:</strong> {{ venue }}<br><strong>Registration fee:</strong> {{ fee }}<br><strong>Registration cut-off:</strong> {{ cutoff }}</p>
 <p><strong>Eligibility:</strong><br>High Schools Champions League and High Schools Development Champions League: birth years <strong>2007–2012</strong>.<br>Primary Schools Champions League and Primary Schools Development League: born <strong>2013 or later/younger</strong>.</p>
-<p><strong>Important:</strong> Date of Birth and Gender are compulsory for every player. The system checks the selected division against the player's year of birth before accepting the registration.</p>
+<p><strong>Important:</strong> Date of Birth and Gender are compulsory for every player you enter. Completely blank player rows are ignored, so you do not need to remove unused rows before submitting.</p>
 {% if closed %}
 <p><strong>REGISTRATION IS CLOSED.</strong> The closing date was {{ cutoff }}.</p>
 {% else %}
@@ -17,6 +17,23 @@
 <table id="players"><thead><tr><th>CHESSA ID</th><th>Surname *</th><th>First Name *</th><th>Date of Birth *</th><th>Gender *</th><th>Grade</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
 <p><button type="button" onclick="addRow()">+ Add Player</button> <button type="submit">Submit Registration</button></p>
 </form>
-<script>function addRow(){const tb=document.querySelector('#players tbody');const tr=document.createElement('tr');tr.innerHTML=`<td><input name="chessa_id[]"></td><td><input name="surname[]" required></td><td><input name="first_name[]" required></td><td><input type="date" name="birth_date[]" required></td><td><select name="gender[]" required><option value="">Select</option><option>Male</option><option>Female</option></select></td><td><input name="grade[]"></td><td><input name="notes[]"></td><td><button type="button" onclick="this.closest('tr').remove()">Remove</button></td>`;tb.appendChild(tr)}for(let i=0;i<5;i++)addRow();</script>
+<script>
+function addRow(){const tb=document.querySelector('#players tbody');const tr=document.createElement('tr');tr.innerHTML=`<td><input name="chessa_id[]"></td><td><input name="surname[]"></td><td><input name="first_name[]"></td><td><input type="date" name="birth_date[]"></td><td><select name="gender[]"><option value="">Select</option><option>Male</option><option>Female</option></select></td><td><input name="grade[]"></td><td><input name="notes[]"></td><td><button type="button" onclick="this.closest('tr').remove()">Remove</button></td>`;tb.appendChild(tr)}
+for(let i=0;i<5;i++)addRow();
+document.getElementById('regform').addEventListener('submit',function(e){
+  const rows=[...document.querySelectorAll('#players tbody tr')]; let completed=0;
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i], vals=[...r.querySelectorAll('input,select')].map(x=>x.value.trim());
+    const any=vals.some(Boolean); if(!any) continue;
+    const surname=r.querySelector('[name="surname[]"]').value.trim();
+    const first=r.querySelector('[name="first_name[]"]').value.trim();
+    const dob=r.querySelector('[name="birth_date[]"]').value.trim();
+    const gender=r.querySelector('[name="gender[]"]').value.trim();
+    if(!surname||!first||!dob||!gender){e.preventDefault();alert('Player row '+(i+1)+' is incomplete. Surname, First Name, Date of Birth and Gender are compulsory for a player you enter. Completely blank rows may be left as they are.');return;}
+    completed++;
+  }
+  if(completed===0){e.preventDefault();alert('Please enter at least one player before submitting.');}
+});
+</script>
 {% endif %}
 {% endblock %}
